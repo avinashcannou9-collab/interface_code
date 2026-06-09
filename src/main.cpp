@@ -2,6 +2,8 @@
 #include "lvgl.h"
 #include "lvglDrivers.h"
 #include <STM32encoder.h>
+#include <HardwareTimer.h>
+
 // --- BROCHES MATERIELLES MOTEUR ---
 
 const int pinPWM = 6;  
@@ -68,6 +70,23 @@ void mySetup() {
     testLvgl();
     pin_function(PC_6, STM_PIN_DATA(STM_MODE_AF_PP, GPIO_PULLUP, GPIO_AF2_TIM3));
     pin_function(PC_7, STM_PIN_DATA(STM_MODE_AF_PP, GPIO_PULLUP, GPIO_AF2_TIM3));
+
+        // Using pin = PA0, PA1, etc.
+    PinName pinNameToUse = digitalPinToPinName(PH6);
+
+    // Automatically retrieve TIM instance and channel associated to pin
+    // This is used to be compatible with all STM32 series automatically.
+    TIM_TypeDef *Instance = (TIM_TypeDef *)pinmap_peripheral(pinNameToUse, PinMap_PWM);
+    
+    if (Instance != nullptr)
+    {
+      uint8_t timerIndex = get_timer_index(Instance);
+      Serial.printf("Timer %d\n", (int)timerIndex);
+    }
+    else
+    {
+      Serial.printf("No instance\n");
+    }
 }
 
 void loop() {
