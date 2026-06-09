@@ -97,7 +97,7 @@ void loop() {
     if (moteurEnMarche) {
         digitalWrite(pinSens, HIGH);
         // On teste ton hypothèse : baisse de la puissance à 80
-        analogWrite(pinPWM, 50); 
+        analogWrite(pinPWM, 150); 
     } else {
         analogWrite(pinPWM, 0);
     }
