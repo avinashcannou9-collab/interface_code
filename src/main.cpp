@@ -14,6 +14,9 @@ STM32encoder myEnc(TIM3,0,65535);
 volatile bool moteurEnMarche = false;
 lv_obj_t * label_compteur;
 
+// --- DÉCLARATION DE L'IMAGE ---
+LV_IMG_DECLARE(Carnaval);
+
 // --- GESTION DE L'ÉCRAN TACTILE ---
 
 static void event_handler(lv_event_t * e) {
@@ -30,6 +33,11 @@ static void event_handler(lv_event_t * e) {
 void testLvgl() {
 
     lv_obj_clean(lv_screen_active());
+
+    // --- AFFICHAGE DE L'IMAGE EN FOND ---
+    lv_obj_t * img_fond = lv_img_create(lv_screen_active());
+    lv_img_set_src(img_fond, &Carnaval);
+    lv_obj_align(img_fond, LV_ALIGN_CENTER, 0, 0);
 
     lv_obj_t * btn = lv_button_create(lv_screen_active());
     lv_obj_add_event_cb(btn, event_handler, LV_EVENT_ALL, NULL);
@@ -70,7 +78,7 @@ void loop() {
     if (moteurEnMarche) {
         digitalWrite(pinSens, HIGH);
         // On teste ton hypothèse : baisse de la puissance à 80
-        analogWrite(pinPWM, 80); 
+        analogWrite(pinPWM, 50); 
     } else {
         analogWrite(pinPWM, 0);
     }
