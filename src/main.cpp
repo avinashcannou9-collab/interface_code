@@ -32,13 +32,6 @@ static void event_handler(lv_event_t * e) {
 
     if(code == LV_EVENT_VALUE_CHANGED) {
         moteurEnMarche = lv_obj_has_state(obj, LV_STATE_CHECKED);
-        
-        // Changement de couleur dynamique du bouton PLAY
-        if(moteurEnMarche) {
-            lv_obj_set_style_bg_color(obj, lv_color_hex(0x00FF00), 0); // Vert
-        } else {
-            lv_obj_set_style_bg_color(obj, lv_color_hex(0xFF0000), 0); // Rouge
-        }
     }
 }
 
@@ -47,6 +40,7 @@ void testLvgl() {
 
     // --- AFFICHAGE DE L'IMAGE EN FOND ---
     lv_obj_t * img_fond = lv_img_create(lv_screen_active());
+    lv_obj_clear_flag(lv_screen_active(), LV_OBJ_FLAG_SCROLLABLE);
     lv_img_set_src(img_fond, &Carnaval);
     lv_obj_align(img_fond, LV_ALIGN_CENTER, 0, 0);
 
@@ -64,9 +58,11 @@ void testLvgl() {
     lv_obj_set_style_border_color(roue, lv_color_hex(0xF69E53), 0);
 
     // --- 2. L'AIGUILLE ---
-    aiguille = lv_button_create(roue);
+    aiguille = lv_obj_create(roue);
+    lv_obj_clear_flag(aiguille, LV_OBJ_FLAG_SCROLLABLE);
     lv_obj_set_size(aiguille, 80, 6);
     lv_obj_align(aiguille, LV_ALIGN_CENTER, 40, 0); 
+    
     
     // Couleur : Rouge brique vif
     lv_obj_set_style_bg_color(aiguille, lv_color_hex(0xD72A28), 0);
@@ -132,8 +128,8 @@ void loop() {
     // --- 2. GESTION DU HACHEUR MOTEUR ---
     if (moteurEnMarche) {
         digitalWrite(pinSens, HIGH);
-        // On teste ton hypothèse : baisse de la puissance à 80
-        analogWrite(pinPWM, 150); 
+        // On teste ton hypothèse : baisse de la puissance à 150/255 pour éviter les vibrations à basse vitesse
+        analogWrite(pinPWM, 195); 
     } else {
         analogWrite(pinPWM, 0);
     }
