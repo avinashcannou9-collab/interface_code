@@ -3,14 +3,15 @@
 #include "lvglDrivers.h"
 #include <STM32encoder.h>
 #include <HardwareTimer.h>
+#include <math.h>
 
 // --- BROCHES MATERIELLES MOTEUR ---
 const int pinPWM = 6;  
 const int pinSens = 7;
-const long TICKS_PAR_TOUR = 527;
+const long TICKS_PAR_TOUR = 703; 
 
-// Initialisation matérielle sur TIM3
-STM32encoder myEnc(TIM3, 0, 65535);
+// Initialisation sur TIM3
+STM32encoder myEnc(TIM3,0,65535);
 volatile bool moteurEnMarche = false;
 
 // --- VARIABLES GLOBALES DE L'INTERFACE ---
@@ -19,18 +20,31 @@ lv_obj_t * roue;
 lv_obj_t * aiguille;
 lv_obj_t * btn_play;
 
+// --- VARIABLES DU JEU QTE ---
+lv_obj_t * arc_zone;
+lv_obj_t * label_score;
+int score = 0;
+int taille_zone = 90; // La zone commence très large (90 degrés)
+int centre_zone = 0;
+
 // --- DÉCLARATION DE L'IMAGE ---
 LV_IMG_DECLARE(Carnaval);
 
-// --- CALLBACKS ANIMATIONS (LVGL 9.2.2) ---
-static void anim_scale_cb(void * var, int32_t v) {
-    lv_obj_set_style_transform_scale((lv_obj_t *)var, v, 0);
+// --- FONCTION POUR GÉNÉRER LA ZONE VERTE ---
+void genererNouvelleZone() {
+    centre_zone = random(0, 360);
+    
+    // On adapte les degrés mathématiques (0=haut) aux degrés LVGL (0=droite)
+    int arc_debut = (centre_zone - (taille_zone / 2) + 270) % 360;
+    int arc_fin = (centre_zone + (taille_zone / 2) + 270) % 360;
+    
+    if (arc_debut < 0) arc_debut += 360;
+    if (arc_fin < 0) arc_fin += 360;
+
+    lv_arc_set_angles(arc_zone, arc_debut, arc_fin);
 }
 
-static void anim_translate_x_cb(void * var, int32_t v) {
-    lv_obj_set_style_translate_x((lv_obj_t *)var, v, 0);
-}
-
+// --- GESTION DE L'ÉCRAN TACTILE ---
 static void event_handler(lv_event_t * e) {
     lv_event_code_t code = lv_event_get_code(e);
     lv_obj_t * obj = (lv_obj_t *)lv_event_get_target(e);
@@ -39,6 +53,8 @@ static void event_handler(lv_event_t * e) {
         moteurEnMarche = lv_obj_has_state(obj, LV_STATE_CHECKED);
     }
 }
+
+static lv_point_precise_t points_aiguille[2];
 
 void testLvgl() {
     lv_obj_clean(lv_screen_active());
@@ -49,54 +65,67 @@ void testLvgl() {
     lv_img_set_src(img_fond, &Carnaval);
     lv_obj_align(img_fond, LV_ALIGN_CENTER, 0, 0);
 
-    // --- 1. La ROUE (Cercle à gauche) ---
+    // --- 1. La ROUE ---
     roue = lv_obj_create(lv_screen_active());
     lv_obj_set_size(roue, 200, 200);
     lv_obj_align(roue, LV_ALIGN_LEFT_MID, 40, 0);
     lv_obj_set_style_radius(roue, LV_RADIUS_CIRCLE, 0);
-    
-    // Fond : Bleu nuit très sombre (couleur de l'eau et des ombres en bas)
     lv_obj_set_style_bg_color(roue, lv_color_hex(0x1B1D36), 0); 
-    
-    // Bordure : Orange/Doré (couleur du ciel au centre et des guirlandes lumineuses)
     lv_obj_set_style_border_width(roue, 8, 0);
     lv_obj_set_style_border_color(roue, lv_color_hex(0xF69E53), 0);
 
-    // --- 2. L'AIGUILLE ---
-    aiguille = lv_obj_create(roue);
-    lv_obj_clear_flag(aiguille, LV_OBJ_FLAG_SCROLLABLE);
-    lv_obj_set_size(aiguille, 80, 6);
-    lv_obj_align(aiguille, LV_ALIGN_CENTER, 40, 0); 
-    
-    
-    // Couleur : Rouge brique vif
-    lv_obj_set_style_bg_color(aiguille, lv_color_hex(0xD72A28), 0);
-    lv_obj_set_style_border_width(aiguille, 0, 0);
-    
-    // Pivot au centre de la roue pour la future rotation
-    lv_obj_set_style_transform_pivot_x(aiguille, 0, 0); 
-    lv_obj_set_style_transform_pivot_y(aiguille, 3, 0);
+    // --- 1.5 LA ZONE VERTE DU JEU ---
+    arc_zone = lv_arc_create(roue);
+    lv_obj_set_size(arc_zone, 200, 200);
+    lv_obj_center(arc_zone);
+    lv_obj_remove_style(arc_zone, NULL, LV_PART_KNOB); // Enlève le bouton de l'arc
+    lv_obj_clear_flag(arc_zone, LV_OBJ_FLAG_CLICKABLE); // Empêche de cliquer dessus
+    lv_obj_set_style_arc_width(arc_zone, 0, LV_PART_MAIN); // Cache le fond gris
+    lv_obj_set_style_arc_width(arc_zone, 12, LV_PART_INDICATOR); // Epaisseur de la zone verte
+    lv_obj_set_style_arc_color(arc_zone, lv_color_hex(0x00FF00), LV_PART_INDICATOR); // Couleur Verte
 
-    // --- 3. LE BOUTON PLAY (À droite) ---
+    genererNouvelleZone(); // On place la première zone
+
+    // --- 2. L'AIGUILLE ---
+    aiguille = lv_line_create(roue); 
+    lv_obj_clear_flag(aiguille, LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_set_style_line_width(aiguille, 6, 0);
+    lv_obj_set_style_line_color(aiguille, lv_color_hex(0xD72A28), 0);
+    lv_obj_set_style_line_rounded(aiguille, true, 0);
+    lv_obj_set_pos(aiguille, 0, 0);
+
+    points_aiguille[0].x = (lv_value_precise_t)80.0f;
+    points_aiguille[0].y = (lv_value_precise_t)80.0f;
+    points_aiguille[1].x = (lv_value_precise_t)80.0f;
+    points_aiguille[1].y = (lv_value_precise_t)80.0f;
+    lv_line_set_points_mutable(aiguille, points_aiguille, 2);
+
+    // --- 3. LE BOUTON PLAY ---
     btn_play = lv_button_create(lv_screen_active());
     lv_obj_add_event_cb(btn_play, event_handler, LV_EVENT_ALL, NULL);
     lv_obj_set_size(btn_play, 120, 60);
-    lv_obj_align(btn_play, LV_ALIGN_RIGHT_MID, -60, 0); // Décalé sur la droite
+    lv_obj_align(btn_play, LV_ALIGN_RIGHT_MID, -60, 0); 
     lv_obj_add_flag(btn_play, LV_OBJ_FLAG_CHECKABLE);
-    lv_obj_set_style_bg_color(btn_play, lv_color_hex(0xFF0000), 0); // Rouge au repos
+    lv_obj_set_style_bg_color(btn_play, lv_color_hex(0xFF0000), 0); 
 
     lv_obj_t * label_btn = lv_label_create(btn_play);
-    lv_label_set_text(label_btn, "PLAY");
+    lv_label_set_text(label_btn, "PLAY / STOP");
     lv_obj_center(label_btn);
 
-    // --- 4. LE TEXTE DU COMPTEUR ---
+    // --- 4. TEXTES (COMPTEUR ET SCORE) ---
     label_compteur = lv_label_create(lv_screen_active());
     lv_label_set_text(label_compteur, "Degres : 0");
-    // On met un petit fond sombre pour qu'il soit lisible sur l'image
     lv_obj_set_style_bg_color(label_compteur, lv_color_hex(0x000000), 0);
     lv_obj_set_style_bg_opa(label_compteur, 150, 0);
     lv_obj_set_style_text_color(label_compteur, lv_color_hex(0xFFFFFF), 0);
     lv_obj_align(label_compteur, LV_ALIGN_BOTTOM_MID, 0, -20);
+
+    label_score = lv_label_create(lv_screen_active());
+    lv_label_set_text(label_score, "SCORE: 0");
+    lv_obj_set_style_bg_color(label_score, lv_color_hex(0x000000), 0);
+    lv_obj_set_style_bg_opa(label_score, 150, 0);
+    lv_obj_set_style_text_color(label_score, lv_color_hex(0xFFFFFF), 0);
+    lv_obj_align(label_score, LV_ALIGN_TOP_MID, 0, 20); // Affiché en haut
 }
 
 #ifdef ARDUINO
@@ -104,23 +133,29 @@ void testLvgl() {
 void mySetup() {
     Serial.begin(115200);
     
-    // Configuration Moteur
+    delay(500); // Laisse l'électronique se stabiliser
+    
+    pinMode(D0, INPUT_PULLUP);
+    pinMode(D1, INPUT_PULLUP);
     pinMode(pinPWM, OUTPUT);
     pinMode(pinSens, OUTPUT);
-    
-    // SÉCURITÉ MATÉRIELLE : Moteur coupé pour test IHM
     digitalWrite(pinPWM, LOW);
-    
-    creationInterfaceFoire();
-    
-    // Routage des broches PC6 et PC7 vers le Timer matériel TIM3
+
+    // Initialisation matérielle encodeur
     pin_function(PC_6, STM_PIN_DATA(STM_MODE_AF_PP, GPIO_PULLUP, GPIO_AF2_TIM3));
     pin_function(PC_7, STM_PIN_DATA(STM_MODE_AF_PP, GPIO_PULLUP, GPIO_AF2_TIM3));
+    
+    __HAL_RCC_TIM3_CLK_ENABLE(); 
+    TIM3->SMCR |= TIM_SMCR_SMS_0 | TIM_SMCR_SMS_1;      
+    TIM3->CCMR1 |= TIM_CCMR1_CC1S_0 | TIM_CCMR1_CC2S_0; 
+    TIM3->CR1 |= TIM_CR1_CEN;    
 
-    // Using pin = PA0, PA1, etc.
+    // Initialise le hasard avec le "bruit" matériel du timer
+    randomSeed(TIM3->CNT + analogRead(A0)); 
+    
+    testLvgl();
+
     PinName pinNameToUse = digitalPinToPinName(PH6);
-
-    // Automatically retrieve TIM instance and channel associated to pin
     TIM_TypeDef *Instance = (TIM_TypeDef *)pinmap_peripheral(pinNameToUse, PinMap_PWM);
     
     if (Instance != nullptr) {
@@ -132,27 +167,87 @@ void mySetup() {
 }
 
 void loop() {
-    // 1. Rafraîchissement tactile et animations
+    // --- 1. MOTEUR DE L'ÉCRAN TACTILE ---
     lv_timer_handler(); 
 
-    // 2. Gestion moteur commentée pour l'instant (isolation IHM)
-    /*
+    // --- 2. TON BLOC MOTEUR ---
     if (moteurEnMarche) {
         digitalWrite(pinSens, HIGH);
-        // On teste ton hypothèse : baisse de la puissance à 150/255 pour éviter les vibrations à basse vitesse
         analogWrite(pinPWM, 195); 
+        
+        long valeur_angle = TIM3->CNT; 
+        
+        float angle_degres = -(((float)valeur_angle * 360.0f) / (float)TICKS_PAR_TOUR);
+        int angle_entier = (int)angle_degres % 360;
+        if (angle_entier < 0) angle_entier += 360;
+
+        float angle_radians = (angle_degres - 90.0f) * (M_PI / 180.0f);
+        
+        lv_value_precise_t nouv_x = (lv_value_precise_t)(80.0f + 80.0f * cosf(angle_radians));
+        lv_value_precise_t nouv_y = (lv_value_precise_t)(80.0f + 80.0f * sinf(angle_radians));
+
+        if (aiguille) {
+            points_aiguille[0].x = (lv_value_precise_t)80.0f;
+            points_aiguille[0].y = (lv_value_precise_t)80.0f;
+            points_aiguille[1].x = nouv_x;
+            points_aiguille[1].y = nouv_y;
+            lv_line_set_points_mutable(aiguille, points_aiguille, 2);
+        }
+
+        lv_label_set_text_fmt(label_compteur, "Degres : %d", angle_entier);
+        
     } else {
         analogWrite(pinPWM, 0);
     }
-    */
 
-    // 3. Traitement et lecture du STM32Encoder (toutes les 100ms)
+    // --- 3. DIAGNOSTIC COMPLET ET LOGIQUE DU JEU (Toutes les 100ms) ---
     static unsigned long tempsPrecedent = 0;
+    static bool ancienEtatMoteur = false;
+
     if (millis() - tempsPrecedent >= 100) {
         tempsPrecedent = millis();
-        
-        // On affiche l'état du bouton (0 ou 1) ET les tics matériels
-        Serial.printf("Bouton PLAY : %d | Tics encodeur : %ld\n", moteurEnMarche, TIM3->CNT);
+
+        // LOGIQUE DU JEU : On détecte le moment exact où tu as fait PLAY -> STOP
+        if (ancienEtatMoteur == true && moteurEnMarche == false) {
+            
+            // On récupère le dernier angle connu
+            long valeur_angle = TIM3->CNT;
+            float angle_degres = -(((float)valeur_angle * 360.0f) / (float)TICKS_PAR_TOUR);
+            int angle_entier = (int)angle_degres % 360;
+            if (angle_entier < 0) angle_entier += 360;
+
+            // On calcule la distance la plus courte sur le cercle entre l'aiguille et le centre de la zone
+            int diff = abs(angle_entier - centre_zone);
+            if (diff > 180) diff = 360 - diff;
+
+            // VERDICT
+            if (diff <= (taille_zone / 2)) {
+                // VICTOIRE
+                score++;
+                taille_zone -= 10; // Le jeu devient de plus en plus dur (-10 degrés à chaque fois)
+                if (taille_zone < 15) taille_zone = 15; // Limite de difficulté (pour que ce soit humainement possible)
+                
+                lv_obj_set_style_text_color(label_score, lv_color_hex(0x00FF00), 0); // Texte Vert
+                Serial.printf("GAGNE ! Score: %d | Zone restante: %d degres\n", score, taille_zone);
+            } else {
+                // DÉFAITE
+                score = 0;
+                taille_zone = 90; // Reset de la difficulté
+                
+                lv_obj_set_style_text_color(label_score, lv_color_hex(0xFF0000), 0); // Texte Rouge
+                Serial.println("PERDU ! Remise a zero.");
+            }
+
+            // Mise à jour de l'affichage et génération de la prochaine zone
+            lv_label_set_text_fmt(label_score, "SCORE: %d", score);
+            genererNouvelleZone();
+        } 
+        // Si tu relances le moteur, on remet le texte du score en blanc classique
+        else if (ancienEtatMoteur == false && moteurEnMarche == true) {
+            lv_obj_set_style_text_color(label_score, lv_color_hex(0xFFFFFF), 0);
+        }
+
+        ancienEtatMoteur = moteurEnMarche;
     }
 }
 
@@ -166,7 +261,8 @@ void myTask(void *pvParameters) {
 #else
 #include "app_hal.h"
 #include <cstdio>
+
 int main(void) {
-    lv_init(); hal_setup(); creationInterfaceFoire(); hal_loop(); return 0;
+    lv_init(); hal_setup(); testLvgl(); hal_loop(); return 0;
 }
 #endif
