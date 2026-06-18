@@ -27,8 +27,12 @@ int score = 0;
 int taille_zone = 90; // La zone commence très large (90 degrés)
 int centre_zone = 0;
 
-// --- DÉCLARATION DE L'IMAGE ---
-LV_IMG_DECLARE(Carnaval);
+// --- VARIABLES POUR LE FLASH D'ÉCRAN ---
+unsigned long temps_flash = 0;
+bool ecran_en_flash = false;
+
+lv_obj_t * ecran_principal;
+lv_obj_t * ecran_secondaire;
 
 // --- FONCTION POUR GÉNÉRER LA ZONE VERTE ---
 void genererNouvelleZone() {
@@ -56,14 +60,52 @@ static void event_handler(lv_event_t * e) {
 
 static lv_point_precise_t points_aiguille[2];
 
+// --- CALLBACKS CHANGEMENT DE PAGE ---
+static void aller_page_2_cb(lv_event_t * e) {
+    // Charge l'écran 2
+    lv_screen_load(ecran_secondaire);
+}
+
+static void retour_page_1_cb(lv_event_t * e) {
+    // Recharge l'écran du jeu
+    lv_screen_load(ecran_principal);
+}
+
+void initialiserPages() {
+    // 1. Sauvegarde l'écran actuel du jeu comme écran principal
+    ecran_principal = lv_screen_active();
+
+    // 2. Crée un bouton sur ton écran de jeu pour changer de page
+    lv_obj_t * btn_menu = lv_button_create(ecran_principal);
+    lv_obj_set_size(btn_menu, 80, 40);
+    lv_obj_align(btn_menu, LV_ALIGN_TOP_RIGHT,0, 10);
+    lv_obj_add_event_cb(btn_menu, aller_page_2_cb, LV_EVENT_CLICKED, NULL);
+    
+    lv_obj_t * label_menu = lv_label_create(btn_menu);
+    lv_label_set_text(label_menu, "Page 2");
+    lv_obj_center(label_menu);
+
+    // 3. Crée le deuxième écran (NULL = crée un nouvel objet racine/écran)
+    ecran_secondaire = lv_obj_create(NULL);
+    // Met un fond différent pour bien voir le changement
+    lv_obj_set_style_bg_color(ecran_secondaire, lv_color_hex(0x222222), 0); 
+
+    // 4. Crée un bouton de retour sur ce deuxième écran
+    lv_obj_t * btn_retour = lv_button_create(ecran_secondaire);
+    lv_obj_set_size(btn_retour, 150, 60);
+    lv_obj_align(btn_retour, LV_ALIGN_CENTER, 0, 0);
+    lv_obj_add_event_cb(btn_retour, retour_page_1_cb, LV_EVENT_CLICKED, NULL);
+
+    lv_obj_t * label_retour = lv_label_create(btn_retour);
+    lv_label_set_text(label_retour, "Retour au Jeu");
+    lv_obj_center(label_retour);
+}
+
 void testLvgl() {
     lv_obj_clean(lv_screen_active());
 
-    // --- AFFICHAGE DE L'IMAGE EN FOND ---
-    lv_obj_t * img_fond = lv_img_create(lv_screen_active());
-    lv_obj_clear_flag(lv_screen_active(), LV_OBJ_FLAG_SCROLLABLE);
-    lv_img_set_src(img_fond, &Carnaval);
-    lv_obj_align(img_fond, LV_ALIGN_CENTER, 0, 0);
+    // --- FOND DE L'ÉCRAN (Noir par défaut pour voir les flashs) ---
+    lv_obj_set_style_bg_color(lv_screen_active(), lv_color_hex(0x000000), 0);
 
     // --- 1. La ROUE ---
     roue = lv_obj_create(lv_screen_active());
@@ -78,13 +120,13 @@ void testLvgl() {
     arc_zone = lv_arc_create(roue);
     lv_obj_set_size(arc_zone, 200, 200);
     lv_obj_center(arc_zone);
-    lv_obj_remove_style(arc_zone, NULL, LV_PART_KNOB); // Enlève le bouton de l'arc
-    lv_obj_clear_flag(arc_zone, LV_OBJ_FLAG_CLICKABLE); // Empêche de cliquer dessus
-    lv_obj_set_style_arc_width(arc_zone, 0, LV_PART_MAIN); // Cache le fond gris
-    lv_obj_set_style_arc_width(arc_zone, 12, LV_PART_INDICATOR); // Epaisseur de la zone verte
-    lv_obj_set_style_arc_color(arc_zone, lv_color_hex(0x00FF00), LV_PART_INDICATOR); // Couleur Verte
+    lv_obj_remove_style(arc_zone, NULL, LV_PART_KNOB); 
+    lv_obj_clear_flag(arc_zone, LV_OBJ_FLAG_CLICKABLE); 
+    lv_obj_set_style_arc_width(arc_zone, 0, LV_PART_MAIN); 
+    lv_obj_set_style_arc_width(arc_zone, 12, LV_PART_INDICATOR); 
+    lv_obj_set_style_arc_color(arc_zone, lv_color_hex(0x00FF00), LV_PART_INDICATOR);
 
-    genererNouvelleZone(); // On place la première zone
+    genererNouvelleZone(); 
 
     // --- 2. L'AIGUILLE ---
     aiguille = lv_line_create(roue); 
@@ -116,16 +158,18 @@ void testLvgl() {
     label_compteur = lv_label_create(lv_screen_active());
     lv_label_set_text(label_compteur, "Degres : 0");
     lv_obj_set_style_bg_color(label_compteur, lv_color_hex(0x000000), 0);
-    lv_obj_set_style_bg_opa(label_compteur, 150, 0);
+    lv_obj_set_style_bg_opa(label_compteur, 0, 0); // OPACITÉ À ZÉRO ICI
     lv_obj_set_style_text_color(label_compteur, lv_color_hex(0xFFFFFF), 0);
     lv_obj_align(label_compteur, LV_ALIGN_BOTTOM_MID, 0, -20);
 
     label_score = lv_label_create(lv_screen_active());
     lv_label_set_text(label_score, "SCORE: 0");
     lv_obj_set_style_bg_color(label_score, lv_color_hex(0x000000), 0);
-    lv_obj_set_style_bg_opa(label_score, 150, 0);
+    lv_obj_set_style_bg_opa(label_score, 0, 0); // OPACITÉ À ZÉRO ICI
     lv_obj_set_style_text_color(label_score, lv_color_hex(0xFFFFFF), 0);
-    lv_obj_align(label_score, LV_ALIGN_TOP_MID, 0, 20); // Affiché en haut
+    lv_obj_align(label_score, LV_ALIGN_TOP_MID, 0, 20); 
+
+    initialiserPages();
 }
 
 #ifdef ARDUINO
@@ -133,7 +177,7 @@ void testLvgl() {
 void mySetup() {
     Serial.begin(115200);
     
-    delay(500); // Laisse l'électronique se stabiliser
+    delay(500); 
     
     pinMode(D0, INPUT_PULLUP);
     pinMode(D1, INPUT_PULLUP);
@@ -141,7 +185,6 @@ void mySetup() {
     pinMode(pinSens, OUTPUT);
     digitalWrite(pinPWM, LOW);
 
-    // Initialisation matérielle encodeur
     pin_function(PC_6, STM_PIN_DATA(STM_MODE_AF_PP, GPIO_PULLUP, GPIO_AF2_TIM3));
     pin_function(PC_7, STM_PIN_DATA(STM_MODE_AF_PP, GPIO_PULLUP, GPIO_AF2_TIM3));
     
@@ -150,7 +193,6 @@ void mySetup() {
     TIM3->CCMR1 |= TIM_CCMR1_CC1S_0 | TIM_CCMR1_CC2S_0; 
     TIM3->CR1 |= TIM_CR1_CEN;    
 
-    // Initialise le hasard avec le "bruit" matériel du timer
     randomSeed(TIM3->CNT + analogRead(A0)); 
     
     testLvgl();
@@ -170,7 +212,67 @@ void loop() {
     // --- 1. MOTEUR DE L'ÉCRAN TACTILE ---
     lv_timer_handler(); 
 
-    // --- 2. TON BLOC MOTEUR ---
+    // --- GESTION DU RETOUR AU NOIR APRES LE FLASH ---
+    if (ecran_en_flash && (millis() - temps_flash >= 300)) {
+        lv_obj_set_style_bg_color(lv_screen_active(), lv_color_hex(0x000000), 0); // Remet le fond noir
+        ecran_en_flash = false;
+    }
+
+    static bool ancienEtatMoteur = false;
+
+    // --- 2. LOGIQUE DU JEU EN TEMPS RÉEL (ZÉRO DÉLAI INFORMATIQUE) ---
+    if (ancienEtatMoteur == true && moteurEnMarche == false) {
+        
+        // On coupe le moteur matériellement à l'instant T
+        analogWrite(pinPWM, 0);
+        
+        long valeur_angle = TIM3->CNT;
+        float angle_degres = -(((float)valeur_angle * 360.0f) / (float)TICKS_PAR_TOUR);
+        int angle_entier = (int)angle_degres % 360;
+        if (angle_entier < 0) angle_entier += 360;
+
+        int diff = abs(angle_entier - centre_zone);
+        if (diff > 180) diff = 360 - diff;
+
+        if (diff <= (taille_zone / 2)) {
+            // VICTOIRE
+            score++;
+            taille_zone -= 10; 
+            if (taille_zone < 15) taille_zone = 15; 
+            
+            lv_obj_set_style_text_color(label_score, lv_color_hex(0x00FF00), 0); 
+            
+            // DÉCLENCHE LE FLASH VERT
+            lv_obj_set_style_bg_color(lv_screen_active(), lv_color_hex(0x00FF00), 0); 
+            temps_flash = millis();
+            ecran_en_flash = true;
+
+            Serial.printf("GAGNE ! Score: %d | Zone restante: %d degres\n", score, taille_zone);
+        } else {
+            // DÉFAITE
+            score = 0;
+            taille_zone = 90; 
+            
+            lv_obj_set_style_text_color(label_score, lv_color_hex(0xFF0000), 0); 
+            
+            // DÉCLENCHE LE FLASH ROUGE
+            lv_obj_set_style_bg_color(lv_screen_active(), lv_color_hex(0xFF0000), 0); 
+            temps_flash = millis();
+            ecran_en_flash = true;
+
+            Serial.println("PERDU ! Remise a zero.");
+        }
+
+        lv_label_set_text_fmt(label_score, "SCORE: %d", score);
+        genererNouvelleZone();
+    } 
+    else if (ancienEtatMoteur == false && moteurEnMarche == true) {
+        lv_obj_set_style_text_color(label_score, lv_color_hex(0xFFFFFF), 0);
+    }
+
+    ancienEtatMoteur = moteurEnMarche;
+
+    // --- 3. TON BLOC MOTEUR (Gestion continue) ---
     if (moteurEnMarche) {
         digitalWrite(pinSens, HIGH);
         analogWrite(pinPWM, 195); 
@@ -197,57 +299,14 @@ void loop() {
         lv_label_set_text_fmt(label_compteur, "Degres : %d", angle_entier);
         
     } else {
+        // Sécurité continue pour l'arrêt
         analogWrite(pinPWM, 0);
     }
 
-    // --- 3. DIAGNOSTIC COMPLET ET LOGIQUE DU JEU (Toutes les 100ms) ---
+    // --- 4. DIAGNOSTIC COMPLET (Toutes les 100ms) ---
     static unsigned long tempsPrecedent = 0;
-    static bool ancienEtatMoteur = false;
-
     if (millis() - tempsPrecedent >= 100) {
         tempsPrecedent = millis();
-
-        // LOGIQUE DU JEU : On détecte le moment exact où tu as fait PLAY -> STOP
-        if (ancienEtatMoteur == true && moteurEnMarche == false) {
-            
-            // On récupère le dernier angle connu
-            long valeur_angle = TIM3->CNT;
-            float angle_degres = -(((float)valeur_angle * 360.0f) / (float)TICKS_PAR_TOUR);
-            int angle_entier = (int)angle_degres % 360;
-            if (angle_entier < 0) angle_entier += 360;
-
-            // On calcule la distance la plus courte sur le cercle entre l'aiguille et le centre de la zone
-            int diff = abs(angle_entier - centre_zone);
-            if (diff > 180) diff = 360 - diff;
-
-            // VERDICT
-            if (diff <= (taille_zone / 2)) {
-                // VICTOIRE
-                score++;
-                taille_zone -= 10; // Le jeu devient de plus en plus dur (-10 degrés à chaque fois)
-                if (taille_zone < 15) taille_zone = 15; // Limite de difficulté (pour que ce soit humainement possible)
-                
-                lv_obj_set_style_text_color(label_score, lv_color_hex(0x00FF00), 0); // Texte Vert
-                Serial.printf("GAGNE ! Score: %d | Zone restante: %d degres\n", score, taille_zone);
-            } else {
-                // DÉFAITE
-                score = 0;
-                taille_zone = 90; // Reset de la difficulté
-                
-                lv_obj_set_style_text_color(label_score, lv_color_hex(0xFF0000), 0); // Texte Rouge
-                Serial.println("PERDU ! Remise a zero.");
-            }
-
-            // Mise à jour de l'affichage et génération de la prochaine zone
-            lv_label_set_text_fmt(label_score, "SCORE: %d", score);
-            genererNouvelleZone();
-        } 
-        // Si tu relances le moteur, on remet le texte du score en blanc classique
-        else if (ancienEtatMoteur == false && moteurEnMarche == true) {
-            lv_obj_set_style_text_color(label_score, lv_color_hex(0xFFFFFF), 0);
-        }
-
-        ancienEtatMoteur = moteurEnMarche;
     }
 }
 
